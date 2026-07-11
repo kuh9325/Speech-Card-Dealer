@@ -1,0 +1,13 @@
+{
+  "name": "speech-card-dealer",
+  "private": true,
+  "scripts": {
+    "lint": "node --check app.js && node --check tests/flip-smoke.cjs",
+    "typecheck": "node --check app.js",
+    "build": "node --check app.js",
+    "test": "node tests/flip-smoke.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

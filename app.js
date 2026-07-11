@@ -169,6 +169,12 @@ const STORAGE_KEY = "speech-card-board-counts-v1";
 const board = document.querySelector("#themeBoard");
 const spotlight = document.querySelector("#spotlight");
 const resetButton = document.querySelector('[data-action="reset"]');
+const coarsePointerQuery = window.matchMedia("(any-pointer: coarse)");
+const safeFlipRequested = new URLSearchParams(window.location.search).get("safeFlip") === "1";
+const safeFlipEnabled = safeFlipRequested || navigator.maxTouchPoints > 0 || coarsePointerQuery.matches;
+
+document.documentElement.classList.toggle("safe-flip", safeFlipEnabled);
+document.documentElement.dataset.flipMode = safeFlipEnabled ? "safe" : "3d";
 
 let counts = loadCounts();
 
@@ -310,47 +316,64 @@ function renderSpotlight(theme, speech, index, sourceRect) {
     `;
 
   spotlight.innerHTML = `
-    <div class="flip-stage" style="${style}">
+    <div class="flip-stage" style="${style}" data-flipped="false">
       <button class="flip-card" type="button" aria-label="${speech.title} 카드 닫기">
-        <div class="flip-face flip-back">
+        <div class="flip-face flip-back" aria-hidden="false">
           ${renderCardBack(theme, themeIndex, "card-back flip-card-back")}
         </div>
-        <div class="flip-face flip-front ${hasFrontImage ? "has-image" : ""}">
+        <div class="flip-face flip-front ${hasFrontImage ? "has-image" : ""}" aria-hidden="true">
           ${image}
           ${textContent}
         </div>
       </button>
     </div>
   `;
+  spotlight.dataset.closing = "false";
   spotlight.classList.add("is-open");
   spotlight.setAttribute("aria-hidden", "false");
   const stage = spotlight.querySelector(".flip-stage");
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
-      stage.classList.add("is-active");
+      if (!stage.isConnected) return;
+      setFlipState(stage, true);
     });
   });
   spotlight.querySelector(".flip-card").focus();
 }
 
+function setFlipState(stage, isFlipped) {
+  const back = stage.querySelector(".flip-back");
+  const front = stage.querySelector(".flip-front");
+
+  stage.classList.toggle("is-active", isFlipped);
+  stage.dataset.flipped = String(isFlipped);
+  back.setAttribute("aria-hidden", String(isFlipped));
+  front.setAttribute("aria-hidden", String(!isFlipped));
+}
+
 function closeSpotlight({ immediate = false } = {}) {
+  if (spotlight.dataset.closing === "true") return;
+
   const stage = spotlight.querySelector(".flip-stage");
   if (stage && !immediate) {
+    spotlight.dataset.closing = "true";
     let isDone = false;
     const finish = () => {
       if (isDone) return;
       isDone = true;
+      spotlight.dataset.closing = "false";
       spotlight.classList.remove("is-open");
       spotlight.setAttribute("aria-hidden", "true");
       spotlight.innerHTML = "";
     };
 
-    stage.classList.remove("is-active");
+    setFlipState(stage, false);
     stage.addEventListener("transitionend", finish, { once: true });
     window.setTimeout(finish, 760);
     return;
   }
 
+  spotlight.dataset.closing = "false";
   spotlight.classList.remove("is-open");
   spotlight.setAttribute("aria-hidden", "true");
   spotlight.innerHTML = "";
