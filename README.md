@@ -41,8 +41,8 @@ GitHub Pages를 사용할 경우 이 레포의 루트가 정적 사이트로 바
 ```js
 {
   id: "health-01",
-  title: "아침 루틴",
-  body: "하루의 컨디션은 ...",
+  title: "강한 자신",
+  body: "참된 건강이란 ...",
   frontImage: "./assets/front-health-01.png"
 }
 ```
