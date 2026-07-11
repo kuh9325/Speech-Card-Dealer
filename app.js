@@ -166,9 +166,16 @@ const themes = [
 ];
 
 const STORAGE_KEY = "speech-card-board-counts-v1";
+const LIMITS_STORAGE_KEY = "speech-card-board-limits-v1";
+const STOCK_STORAGE_KEY = "speech-card-board-stock-v1";
+const DEFAULT_CARD_LIMIT = 5;
 const board = document.querySelector("#themeBoard");
 const spotlight = document.querySelector("#spotlight");
 const resetButton = document.querySelector('[data-action="reset"]');
+const limitsButton = document.querySelector('[data-action="limits"]');
+const limitDialog = document.querySelector("#limitDialog");
+const limitForm = document.querySelector("#limitForm");
+const limitFields = document.querySelector("#limitFields");
 const coarsePointerQuery = window.matchMedia("(any-pointer: coarse)");
 const safeFlipRequested = new URLSearchParams(window.location.search).get("safeFlip") === "1";
 const safeFlipEnabled = safeFlipRequested || navigator.maxTouchPoints > 0 || coarsePointerQuery.matches;
@@ -177,6 +184,8 @@ document.documentElement.classList.toggle("safe-flip", safeFlipEnabled);
 document.documentElement.dataset.flipMode = safeFlipEnabled ? "safe" : "3d";
 
 let counts = loadCounts();
+let limits = loadStorageObject(LIMITS_STORAGE_KEY);
+let stock = loadStorageObject(STOCK_STORAGE_KEY);
 
 function getImagePath(value) {
   return (value || "").trim();
@@ -190,16 +199,41 @@ function escapeAttribute(value) {
     .replace(/>/g, "&gt;");
 }
 
-function loadCounts() {
+function loadStorageObject(key) {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    const value = JSON.parse(localStorage.getItem(key));
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
   } catch {
     return {};
   }
 }
 
+function loadCounts() {
+  return loadStorageObject(STORAGE_KEY);
+}
+
 function saveCounts() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(counts));
+}
+
+function saveInventory() {
+  localStorage.setItem(LIMITS_STORAGE_KEY, JSON.stringify(limits));
+  localStorage.setItem(STOCK_STORAGE_KEY, JSON.stringify(stock));
+}
+
+function normalizeQuantity(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(999, Math.max(0, Math.floor(number)));
+}
+
+function getCardLimit(speechId) {
+  return normalizeQuantity(limits[speechId], DEFAULT_CARD_LIMIT);
+}
+
+function getRemaining(speechId) {
+  const limit = getCardLimit(speechId);
+  return Math.min(limit, normalizeQuantity(stock[speechId], limit));
 }
 
 function renderBoard() {
@@ -213,12 +247,15 @@ function renderThemeColumn(theme, themeIndex) {
     `--accent-soft: ${theme.accentSoft}`
   ].join("; ");
 
+  const isExhausted = theme.speeches.every((speech) => getRemaining(speech.id) === 0);
+  const label = isExhausted ? `${theme.title} 스피치 카드 소진` : `${theme.title} 스피치 카드`;
+
   return `
     <article class="theme-column" style="${style}">
-      <button class="stack-button" type="button" data-theme-id="${theme.id}" aria-label="${theme.title} 스피치 카드">
+      <button class="stack-button ${isExhausted ? "is-exhausted" : ""}" type="button" data-theme-id="${theme.id}" aria-label="${label}" ${isExhausted ? "disabled" : ""}>
         ${renderCardBack(theme, themeIndex)}
       </button>
-      <div class="count-strip" aria-label="${theme.title} 출력 기록">
+      <div class="count-strip" aria-label="${theme.title} 카드 수량과 출력 기록">
         ${theme.speeches.map((speech, speechIndex) => renderCountChip(speech, speechIndex)).join("")}
       </div>
     </article>
@@ -251,20 +288,25 @@ function renderCardBack(theme, themeIndex, className = "card-back") {
 
 function renderCountChip(speech, speechIndex) {
   const count = counts[speech.id] || 0;
+  const limit = getCardLimit(speech.id);
+  const remaining = getRemaining(speech.id);
 
   return `
-    <div class="count-chip" title="${speech.title}: ${count}회">
-      <span>${String(speechIndex + 1).padStart(2, "0")}</span>
-      <strong>${count}회</strong>
+    <div class="count-chip ${remaining === 0 ? "is-exhausted" : ""}" title="${speech.title}: ${remaining}/${limit}장, 누적 ${count}회">
+      <span>${String(speechIndex + 1).padStart(2, "0")} · ${count}회</span>
+      <strong>${remaining}/${limit}장</strong>
     </div>
   `;
 }
 
 function chooseSpeech(theme) {
-  const randomIndex = Math.floor(Math.random() * theme.speeches.length);
+  const availableSpeeches = theme.speeches.filter((speech) => getRemaining(speech.id) > 0);
+  if (availableSpeeches.length === 0) return null;
+
+  const speech = availableSpeeches[Math.floor(Math.random() * availableSpeeches.length)];
   return {
-    speech: theme.speeches[randomIndex],
-    index: randomIndex
+    speech,
+    index: theme.speeches.findIndex((item) => item.id === speech.id)
   };
 }
 
@@ -273,10 +315,14 @@ function openSpeech(themeId, sourceButton) {
   if (!theme) return;
 
   const selection = chooseSpeech(theme);
+  if (!selection) return;
+
   const { speech, index } = selection;
   const sourceRect = sourceButton.getBoundingClientRect();
   counts[speech.id] = (counts[speech.id] || 0) + 1;
+  stock[speech.id] = getRemaining(speech.id) - 1;
   saveCounts();
+  saveInventory();
   renderBoard();
   renderSpotlight(theme, speech, index, sourceRect);
 }
@@ -296,7 +342,7 @@ function renderSpotlight(theme, speech, index, sourceRect) {
   const hasFrontImage = frontImage.length > 0;
   const image = hasFrontImage ? `<img class="full-card-image" src="${escapeAttribute(frontImage)}" alt="" />` : "";
   const textContent = hasFrontImage
-    ? `<span class="sr-only">${theme.title} ${speech.title} 누적 ${counts[speech.id]}회</span>`
+    ? `<span class="sr-only">${theme.title} ${speech.title} 남은 ${getRemaining(speech.id)}장 누적 ${counts[speech.id]}회</span>`
     : `
       <div class="full-card-content">
         <div class="full-meta">
@@ -309,7 +355,7 @@ function renderSpotlight(theme, speech, index, sourceRect) {
           <p class="full-body">${speech.body}</p>
         </div>
         <div class="full-footer">
-          <span>누적 ${counts[speech.id]}회</span>
+          <span>남은 ${getRemaining(speech.id)}장 · 누적 ${counts[speech.id]}회</span>
           <span>Speech Card</span>
         </div>
       </div>
@@ -380,13 +426,67 @@ function closeSpotlight({ immediate = false } = {}) {
 }
 
 function resetCounts() {
-  const shouldReset = window.confirm("모든 출력 기록을 0회로 초기화할까요?");
+  const shouldReset = window.confirm("모든 출력 기록을 0회로 초기화하고 카드 수량을 상한까지 채울까요?");
   if (!shouldReset) return;
 
   counts = {};
+  stock = {};
   saveCounts();
+  saveInventory();
   closeSpotlight();
   renderBoard();
+}
+
+function renderLimitFields() {
+  limitFields.innerHTML = themes.map((theme) => `
+    <section class="limit-group" style="--accent: ${theme.accent}">
+      <h3>${theme.title}</h3>
+      <div class="limit-list">
+        ${theme.speeches.map((speech, index) => `
+          <label class="limit-row" for="limit-${speech.id}">
+            <span><b>${String(index + 1).padStart(2, "0")}</b>${speech.title}</span>
+            <input id="limit-${speech.id}" name="${speech.id}" type="number" min="0" max="999" step="1" inputmode="numeric" value="${getCardLimit(speech.id)}" />
+          </label>
+        `).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+function openLimitDialog() {
+  renderLimitFields();
+  if (typeof limitDialog.showModal === "function") {
+    limitDialog.showModal();
+  } else {
+    limitDialog.setAttribute("open", "");
+  }
+  limitFields.querySelector("input")?.focus();
+}
+
+function closeLimitDialog() {
+  if (typeof limitDialog.close === "function") {
+    limitDialog.close();
+  } else {
+    limitDialog.removeAttribute("open");
+  }
+}
+
+function saveLimits(event) {
+  event.preventDefault();
+  const formData = new FormData(limitForm);
+
+  themes.flatMap((theme) => theme.speeches).forEach((speech) => {
+    const oldLimit = getCardLimit(speech.id);
+    const oldRemaining = getRemaining(speech.id);
+    const used = Math.max(oldLimit - oldRemaining, 0);
+    const newLimit = normalizeQuantity(formData.get(speech.id), oldLimit);
+    limits[speech.id] = newLimit;
+    stock[speech.id] = Math.max(newLimit - used, 0);
+  });
+
+  saveInventory();
+  renderBoard();
+  closeLimitDialog();
 }
 
 board.addEventListener("click", (event) => {
@@ -398,6 +498,13 @@ board.addEventListener("click", (event) => {
 spotlight.addEventListener("click", closeSpotlight);
 
 resetButton.addEventListener("click", resetCounts);
+limitsButton.addEventListener("click", openLimitDialog);
+limitForm.addEventListener("submit", saveLimits);
+limitDialog.addEventListener("click", (event) => {
+  if (event.target === limitDialog || event.target.closest?.('[data-action="close-limits"]')) {
+    closeLimitDialog();
+  }
+});
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && spotlight.classList.contains("is-open")) {

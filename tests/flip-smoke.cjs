@@ -77,8 +77,11 @@ async function runScenario(browser, baseUrl, scenario) {
 
   await page.evaluate(() => {
     localStorage.setItem("speech-card-board-counts-v1", JSON.stringify({ "health-01": 3 }));
+    localStorage.removeItem("speech-card-board-limits-v1");
+    localStorage.removeItem("speech-card-board-stock-v1");
   });
   await page.reload();
+  assert.match(await page.locator(".theme-column").first().innerText(), /5\/5장/);
 
   if (scenario.safeFlip) {
     await page.evaluate(() => {
@@ -141,6 +144,10 @@ async function runScenario(browser, baseUrl, scenario) {
     await page.evaluate(() => JSON.parse(localStorage.getItem("speech-card-board-counts-v1"))["health-01"]),
     4
   );
+  assert.equal(
+    await page.evaluate(() => JSON.parse(localStorage.getItem("speech-card-board-stock-v1"))["health-01"]),
+    4
+  );
   await page.locator(".flip-card").evaluate((button) => {
     button.click();
     button.click();
@@ -153,7 +160,96 @@ async function runScenario(browser, baseUrl, scenario) {
   assert.equal(closingFaces.front.ariaHidden, "true");
   await page.locator(".spotlight:not(.is-open)").waitFor({ state: "attached" });
   await page.reload();
-  assert.match(await page.locator(".theme-column").first().innerText(), /4회/);
+  assert.match(await page.locator(".theme-column").first().innerText(), /01 · 4회\s+4\/5장/);
+  assert.deepEqual(consoleErrors, []);
+  await context.close();
+}
+
+async function closeCard(page) {
+  await page.locator('.flip-stage[data-flipped="true"]').waitFor();
+  await page.locator(".flip-card").click();
+  await page.locator(".spotlight:not(.is-open)").waitFor({ state: "attached" });
+}
+
+async function runInventoryScenario(browser, baseUrl) {
+  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+  const page = await context.newPage();
+  const consoleErrors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+  await page.addInitScript(() => {
+    Math.random = () => 0;
+  });
+  await page.goto(baseUrl);
+
+  await page.locator('[data-action="limits"]').click();
+  assert.equal(await page.locator("#limitFields input").count(), 20);
+  assert.deepEqual(await page.locator("#limitFields input").evaluateAll((inputs) => inputs.map((input) => input.value)), Array(20).fill("5"));
+  await page.locator('#limit-health-01').fill("2");
+  await page.locator("#limitForm").evaluate((form) => form.requestSubmit());
+  assert.equal(await page.locator("#limitDialog").getAttribute("open"), null);
+  assert.match(await page.locator(".theme-column").first().innerText(), /2\/2장/);
+
+  await page.locator('[data-theme-id="health"]').click();
+  await closeCard(page);
+  assert.deepEqual(
+    await page.evaluate(() => ({
+      count: JSON.parse(localStorage.getItem("speech-card-board-counts-v1"))["health-01"],
+      remaining: JSON.parse(localStorage.getItem("speech-card-board-stock-v1"))["health-01"]
+    })),
+    { count: 1, remaining: 1 }
+  );
+
+  await page.locator('[data-action="limits"]').click();
+  await page.locator('#limit-health-01').fill("4");
+  await page.locator("#limitForm").evaluate((form) => form.requestSubmit());
+  assert.deepEqual(
+    await page.evaluate(() => ({
+      limit: JSON.parse(localStorage.getItem("speech-card-board-limits-v1"))["health-01"],
+      remaining: JSON.parse(localStorage.getItem("speech-card-board-stock-v1"))["health-01"]
+    })),
+    { limit: 4, remaining: 3 }
+  );
+
+  await page.reload();
+  assert.match(await page.locator(".theme-column").first().innerText(), /01 · 1회\s+3\/4장/);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator('[data-action="reset"]').click();
+  assert.equal(await page.evaluate(() => localStorage.getItem("speech-card-board-counts-v1")), "{}");
+  assert.match(await page.locator(".theme-column").first().innerText(), /01 · 0회\s+4\/4장/);
+
+  await page.locator('[data-action="limits"]').click();
+  for (const input of await page.locator('[name^="health-"]').all()) {
+    await input.fill("0");
+  }
+  await page.locator("#limitForm").evaluate((form) => form.requestSubmit());
+  assert.equal(await page.locator('[data-theme-id="health"]').isDisabled(), true);
+  assert.equal(await page.locator('.count-chip.is-exhausted').count(), 5);
+
+  await page.reload();
+  assert.equal(await page.locator('[data-theme-id="health"]').isDisabled(), true);
+
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.locator('[data-action="limits"]').click();
+  const mobileLayout = await page.locator("#limitDialog").evaluate((dialog) => {
+    const dialogRect = dialog.getBoundingClientRect();
+    const footerRect = dialog.querySelector(".limit-footer").getBoundingClientRect();
+    return {
+      dialogLeft: dialogRect.left,
+      dialogRight: dialogRect.right,
+      dialogTop: dialogRect.top,
+      dialogBottom: dialogRect.bottom,
+      footerBottom: footerRect.bottom,
+      viewportWidth: innerWidth,
+      viewportHeight: innerHeight
+    };
+  });
+  assert.equal(mobileLayout.dialogLeft >= 0 && mobileLayout.dialogRight <= mobileLayout.viewportWidth, true);
+  assert.equal(mobileLayout.dialogTop >= 0 && mobileLayout.dialogBottom <= mobileLayout.viewportHeight, true);
+  assert.equal(mobileLayout.footerBottom <= mobileLayout.viewportHeight, true);
+  await page.locator(".dialog-close").click();
   assert.deepEqual(consoleErrors, []);
   await context.close();
 }
@@ -169,6 +265,7 @@ async function main() {
     for (const args of [[], ["--disable-gpu"], ["--use-angle=swiftshader"]]) {
       const browser = await chromium.launch({ ...launchOptions, headless: true, args });
       try {
+        if (args.length === 0) await runInventoryScenario(browser, baseUrl);
         await runScenario(browser, baseUrl, {
           viewport: { width: 1920, height: 1080 },
           scale: 1,
@@ -199,7 +296,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log("Flip smoke tests passed in standard, safe, touch, no-GPU, and SwiftShader modes.");
+  console.log("Inventory and flip smoke tests passed in standard, safe, touch, no-GPU, and SwiftShader modes.");
 }
 
 main().catch((error) => {
