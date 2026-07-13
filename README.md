@@ -41,11 +41,13 @@ GitHub Pages를 사용할 경우 이 레포의 루트가 정적 사이트로 바
 ```js
 {
   id: "health-01",
-  title: "아침 루틴",
-  body: "하루의 컨디션은 ...",
-  frontImage: "./assets/front-health-01.png"
+  title: "강한 자신",
+  body: "참된 건강이란 ...",
+  frontImage: "assets/cards/fronts/health-01.png"
 }
 ```
+
+테마 표지는 `assets/cards/covers/`, 스피치 앞면은 `assets/cards/fronts/`에 있습니다.
 
 이미지 값이 비어 있으면 기본 색상 카드 디자인과 텍스트 스피치가 표시됩니다.
 

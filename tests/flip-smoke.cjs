@@ -9,7 +9,8 @@ const chromePath = process.env.CHROME_PATH;
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8"
+  ".js": "text/javascript; charset=utf-8",
+  ".png": "image/png"
 };
 
 function createServer() {
@@ -254,7 +255,62 @@ async function runInventoryScenario(browser, baseUrl) {
   await context.close();
 }
 
+async function runCardAssetScenario(browser, baseUrl, viewport) {
+  const expectedTitles = {
+    health: ["강한 자신", "정신의 도량", "가치 창조의 건강", "병을 이기는 용기", "자기답게 사는 힘"],
+    relationships: ["변함없는 우정", "사이좋게 지내는 마음", "약속을 지키는 힘", "만남의 가능성", "마음을 여는 사람"],
+    career: ["나만의 사명", "인생은 마라톤", "시작하는 습관", "지지 않는 혼", "노력의 습관"],
+    money: ["인내 위의 행복", "인간성의 힘", "관점의 전환", "원점으로 돌아가기", "승리를 여는 용기"]
+  };
+  const context = await browser.newContext({ viewport, reducedMotion: "reduce" });
+  const page = await context.newPage();
+  await page.goto(baseUrl);
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  const covers = await page.locator(".card-back-image").evaluateAll((images) => images.map((image) => ({
+    complete: image.complete,
+    naturalWidth: image.naturalWidth,
+    src: image.getAttribute("src")
+  })));
+  assert.equal(covers.length, 4);
+  covers.forEach((cover) => {
+    assert.equal(cover.complete && cover.naturalWidth > 0, true, `Cover image failed: ${cover.src}`);
+  });
+
+  for (const [themeId, titles] of Object.entries(expectedTitles)) {
+    for (const [index, expectedTitle] of titles.entries()) {
+      await page.evaluate((randomValue) => {
+        Math.random = () => randomValue;
+      }, (index + 0.01) / titles.length);
+      await page.locator(`[data-theme-id="${themeId}"]`).click();
+      await page.locator('.flip-stage[data-flipped="true"]').waitFor();
+      await page.waitForTimeout(30);
+      const layout = await page.locator(".flip-front").evaluate((front) => ({
+        imageComplete: front.querySelector(".full-card-image")?.complete,
+        imageWidth: front.querySelector(".full-card-image")?.naturalWidth,
+        imageSrc: front.querySelector(".full-card-image")?.getAttribute("src"),
+        label: front.closest(".flip-card")?.getAttribute("aria-label"),
+        fitsHorizontally: front.scrollWidth <= front.clientWidth + 1,
+        fitsVertically: front.scrollHeight <= front.clientHeight + 1
+      }));
+      assert.equal(layout.label, `${expectedTitle} 카드 닫기`);
+      assert.equal(layout.imageComplete && layout.imageWidth > 0, true, `${themeId}-${index + 1} image failed`);
+      assert.equal(layout.imageSrc.endsWith(`/${themeId}-${String(index + 1).padStart(2, "0")}.png`), true);
+      assert.equal(layout.fitsHorizontally, true, `${themeId}-${index + 1} overflows horizontally at ${viewport.width}x${viewport.height}`);
+      assert.equal(layout.fitsVertically, true, `${themeId}-${index + 1} overflows vertically at ${viewport.width}x${viewport.height}`);
+      await closeCard(page);
+    }
+  }
+
+  await context.close();
+}
+
 async function main() {
+  const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.equal(appSource.includes(" - 청춘대화"), false);
+  assert.equal(appSource.includes(" - 스슌천황어서"), false);
+  assert.equal(appSource.includes(" - 제42회"), false);
+  assert.equal(appSource.includes("명언100선中"), false);
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
@@ -265,7 +321,11 @@ async function main() {
     for (const args of [[], ["--disable-gpu"], ["--use-angle=swiftshader"]]) {
       const browser = await chromium.launch({ ...launchOptions, headless: true, args });
       try {
-        if (args.length === 0) await runInventoryScenario(browser, baseUrl);
+        if (args.length === 0) {
+          await runInventoryScenario(browser, baseUrl);
+          await runCardAssetScenario(browser, baseUrl, { width: 1920, height: 1080 });
+          await runCardAssetScenario(browser, baseUrl, { width: 375, height: 667 });
+        }
         await runScenario(browser, baseUrl, {
           viewport: { width: 1920, height: 1080 },
           scale: 1,
@@ -296,7 +356,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log("Inventory and flip smoke tests passed in standard, safe, touch, no-GPU, and SwiftShader modes.");
+  console.log("Card assets, inventory, and flip tests passed in desktop, mobile, touch, no-GPU, and SwiftShader modes.");
 }
 
 main().catch((error) => {
