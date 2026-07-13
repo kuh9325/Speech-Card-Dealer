@@ -552,6 +552,7 @@ function renderSpeechFront(theme, speech) {
     <div class="speech-card theme-cover theme-cover--${theme.id}" data-speech-id="${speech.id}" data-density="${getSpeechDensity(speech.body)}" style="--speech-font-scale: ${fontScale}">
       ${renderThemeScene()}
       <div class="speech-ribbon">${theme.title}</div>
+      <span class="speech-number" aria-label="${theme.title} ${speech.id.slice(-2)}번">${speech.id.slice(-2)}</span>
       <div class="speech-desktop-copy" data-line-count="${layout.lines.length}">
         ${layout.lines.map((line) => `<span>${line}</span>`).join("")}
       </div>

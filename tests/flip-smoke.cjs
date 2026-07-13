@@ -314,12 +314,14 @@ async function runCardAssetScenario(browser, baseUrl, viewport) {
         const card = front.querySelector(".speech-card");
         const desktopCopy = card.querySelector(".speech-desktop-copy");
         const mobileCopy = card.querySelector(".speech-mobile-copy");
+        const number = card.querySelector(".speech-number");
         const desktopVisible = getComputedStyle(desktopCopy).display !== "none";
         const activeCopy = desktopVisible ? desktopCopy : mobileCopy;
         const characters = [...card.querySelectorAll(".speech-character")];
         const desktopLinesFit = !desktopVisible || [...desktopCopy.children].every((line) => line.scrollWidth <= desktopCopy.clientWidth + 1);
         return {
           speechId: card.dataset.speechId,
+          number: number?.textContent.trim(),
           lineCount: Number(desktopCopy.dataset.lineCount),
           desktopVisible,
           mobileVisible: getComputedStyle(mobileCopy).display !== "none",
@@ -333,6 +335,7 @@ async function runCardAssetScenario(browser, baseUrl, viewport) {
       });
       assert.equal(layout.label, `${expectedTitle} 카드 닫기`);
       assert.equal(layout.speechId, `${themeId}-${String(index + 1).padStart(2, "0")}`);
+      assert.equal(layout.number, String(index + 1).padStart(2, "0"));
       assert.equal(layout.lineCount, expectedLineCounts[themeId][index]);
       assert.equal(layout.desktopVisible, !usesMobileLayout);
       assert.equal(layout.mobileVisible, usesMobileLayout);

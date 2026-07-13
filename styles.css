@@ -955,6 +955,26 @@ h1 {
   box-shadow: 0.45cqw 0.55cqw 0 #4a263e;
 }
 
+.speech-number {
+  position: absolute;
+  z-index: 7;
+  left: 24.5%;
+  top: 5.25%;
+  min-width: 5.8%;
+  min-height: 6.7%;
+  padding: 0 0.55cqw;
+  border: 0.18cqw solid var(--accent-deep);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent-deep);
+  display: grid;
+  place-items: center;
+  font-size: 1.75cqw;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0.35cqw 0.8cqw rgba(32, 43, 38, 0.14);
+}
+
 .speech-desktop-copy,
 .speech-mobile-copy {
   position: absolute;
@@ -1056,6 +1076,18 @@ h1 {
     border-radius: 10px;
     font-size: clamp(1.25rem, 6cqw, 1.7rem);
     box-shadow: 5px 6px 0 #4a263e;
+  }
+
+  .speech-number {
+    left: 46%;
+    right: auto;
+    top: 3.8%;
+    min-width: 48px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-width: 2px;
+    font-size: 1.05rem;
+    box-shadow: 0 4px 10px rgba(32, 43, 38, 0.14);
   }
 
   .speech-desktop-copy {
