@@ -6,7 +6,10 @@ const themes = [
     accent: "#258d72",
     accentDeep: "#185f65",
     accentSoft: "#6fc2a1",
-    backImage: "assets/cards/covers/health.png",
+    coverCharacters: [
+      "assets/cards/characters/boy-fist.png",
+      "assets/cards/characters/woman-clipboard.png"
+    ],
     speeches: [
       {
         id: "health-01",
@@ -47,7 +50,10 @@ const themes = [
     accent: "#d24d6a",
     accentDeep: "#7d3e72",
     accentSoft: "#f08a7c",
-    backImage: "assets/cards/covers/relationships.png",
+    coverCharacters: [
+      "assets/cards/characters/girl-thumb.png",
+      "assets/cards/characters/girl-wave.png"
+    ],
     speeches: [
       {
         id: "relationships-01",
@@ -88,7 +94,10 @@ const themes = [
     accent: "#346ed6",
     accentDeep: "#26445f",
     accentSoft: "#7aa9ee",
-    backImage: "assets/cards/covers/career.png",
+    coverCharacters: [
+      "assets/cards/characters/man-pen.png",
+      "assets/cards/characters/man-tablet.png"
+    ],
     speeches: [
       {
         id: "career-01",
@@ -129,7 +138,10 @@ const themes = [
     accent: "#c88a1a",
     accentDeep: "#28615b",
     accentSoft: "#e0b84c",
-    backImage: "assets/cards/covers/money.png",
+    coverCharacters: [
+      "assets/cards/characters/woman-present.png",
+      "assets/cards/characters/man-books.png"
+    ],
     speeches: [
       {
         id: "money-01",
@@ -240,7 +252,7 @@ function renderBoard() {
   board.innerHTML = themes.map(renderThemeColumn).join("");
 }
 
-function renderThemeColumn(theme, themeIndex) {
+function renderThemeColumn(theme) {
   const style = [
     `--accent: ${theme.accent}`,
     `--accent-deep: ${theme.accentDeep}`,
@@ -253,7 +265,7 @@ function renderThemeColumn(theme, themeIndex) {
   return `
     <article class="theme-column" style="${style}">
       <button class="stack-button ${isExhausted ? "is-exhausted" : ""}" type="button" data-theme-id="${theme.id}" aria-label="${label}" ${isExhausted ? "disabled" : ""}>
-        ${renderCardBack(theme, themeIndex)}
+        ${renderCardBack(theme)}
       </button>
       <div class="count-strip" aria-label="${theme.title} 카드 수량과 출력 기록">
         ${theme.speeches.map((speech, speechIndex) => renderCountChip(speech, speechIndex)).join("")}
@@ -262,26 +274,25 @@ function renderThemeColumn(theme, themeIndex) {
   `;
 }
 
-function renderCardBack(theme, themeIndex, className = "card-back") {
-  const backImage = getImagePath(theme.backImage);
-  if (backImage) {
-    return `
-      <div class="${className} has-card-image">
-        <img class="card-back-image" src="${escapeAttribute(backImage)}" alt="" />
-      </div>
-    `;
-  }
+function renderCardBack(theme, className = "card-back") {
+  const [startCharacter, endCharacter] = theme.coverCharacters;
 
   return `
-    <div class="${className}">
-      <div class="card-pattern" aria-hidden="true"></div>
-      <div class="card-copy">
-        <span class="card-number">${String(themeIndex + 1).padStart(2, "0")}</span>
-        <div>
-          <h2 class="theme-title">${theme.title}</h2>
-          <p class="theme-subtitle">${theme.subtitle}</p>
-        </div>
+    <div class="${className} theme-cover theme-cover--${theme.id}" data-cover-theme="${theme.id}">
+      <div class="cover-scene" aria-hidden="true">
+        <div class="cover-panel"></div>
+        <span class="cover-symbol cover-symbol--one"></span>
+        <span class="cover-symbol cover-symbol--two"></span>
+        <span class="cover-prop cover-prop--one"></span>
+        <span class="cover-prop cover-prop--two"></span>
+        <span class="cover-prop cover-prop--three"></span>
       </div>
+      <div class="cover-copy">
+        <h2 class="theme-title">${theme.title}</h2>
+        <p class="theme-subtitle">${theme.subtitle}</p>
+      </div>
+      <img class="cover-character cover-character--start" src="${escapeAttribute(startCharacter)}" alt="" />
+      <img class="cover-character cover-character--end" src="${escapeAttribute(endCharacter)}" alt="" />
     </div>
   `;
 }
@@ -328,7 +339,6 @@ function openSpeech(themeId, sourceButton) {
 }
 
 function renderSpotlight(theme, speech, index, sourceRect) {
-  const themeIndex = themes.findIndex((item) => item.id === theme.id);
   const style = [
     `--accent: ${theme.accent}`,
     `--accent-deep: ${theme.accentDeep}`,
@@ -365,7 +375,7 @@ function renderSpotlight(theme, speech, index, sourceRect) {
     <div class="flip-stage" style="${style}" data-flipped="false">
       <button class="flip-card" type="button" aria-label="${speech.title} 카드 닫기">
         <div class="flip-face flip-back" aria-hidden="false">
-          ${renderCardBack(theme, themeIndex, "card-back flip-card-back")}
+          ${renderCardBack(theme, "card-back flip-card-back")}
         </div>
         <div class="flip-face flip-front ${hasFrontImage ? "has-image" : ""}" aria-hidden="true">
           ${image}

@@ -22,19 +22,24 @@
 
 GitHub Pages를 사용할 경우 이 레포의 루트가 정적 사이트로 바로 동작합니다.
 
-## 이미지 교체
+## 카드 애셋
 
-스피치 도안 이미지가 준비되면 `assets` 폴더에 이미지를 넣고, `app.js`에 경로를 입력하세요.
+테마 표지는 고정 비율 이미지가 아니라 반응형 HTML/CSS 장면으로 구성됩니다. 화면 비율에 맞춰 제목, 부제, 장식과 캐릭터 위치가 조정되며 전체 화면 플립에서도 같은 표지를 사용합니다.
 
-테마별 카드 뒷면 이미지는 각 테마의 `backImage`에 넣습니다.
+표지 캐릭터는 `assets/cards/characters/`에 넣고 `coverCharacters`에 두 이미지 경로를 지정합니다.
 
 ```js
 {
   id: "health",
   title: "건강",
-  backImage: "./assets/back-health.png"
+  coverCharacters: [
+    "assets/cards/characters/boy-fist.png",
+    "assets/cards/characters/woman-clipboard.png"
+  ]
 }
 ```
+
+표지 색상과 테마 장식은 `styles.css`의 `.theme-cover--health`, `.theme-cover--relationships`, `.theme-cover--career`, `.theme-cover--money`에서 관리합니다. 표지에는 제공된 `Hancom MalangMalang` 웹폰트를 사용합니다.
 
 스피치 앞면 이미지는 각 스피치의 `frontImage`에 넣습니다.
 
@@ -47,9 +52,9 @@ GitHub Pages를 사용할 경우 이 레포의 루트가 정적 사이트로 바
 }
 ```
 
-테마 표지는 `assets/cards/covers/`, 스피치 앞면은 `assets/cards/fronts/`에 있습니다.
+스피치 앞면은 `assets/cards/fronts/`에 있습니다.
 
-이미지 값이 비어 있으면 기본 색상 카드 디자인과 텍스트 스피치가 표시됩니다.
+스피치 앞면 이미지 값이 비어 있으면 기본 색상 카드 디자인과 텍스트 스피치가 표시됩니다.
 
 ## 스마트 칠판 안전 모드
 

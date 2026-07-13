@@ -124,7 +124,7 @@ async function runScenario(browser, baseUrl, scenario) {
 
   await page.locator('.flip-stage[data-flipped="true"]').waitFor();
   if (scenario.expectSafe) {
-    await page.waitForTimeout(260);
+    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector(".flip-front")).opacity) > 0.99);
   }
 
   const faces = await readFaces(page);
@@ -267,14 +267,30 @@ async function runCardAssetScenario(browser, baseUrl, viewport) {
   await page.goto(baseUrl);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  const covers = await page.locator(".card-back-image").evaluateAll((images) => images.map((image) => ({
-    complete: image.complete,
-    naturalWidth: image.naturalWidth,
-    src: image.getAttribute("src")
-  })));
+  await page.evaluate(() => document.fonts.ready);
+  const covers = await page.locator(".stack-button > .theme-cover").evaluateAll((elements) => elements.map((cover) => {
+    const characters = [...cover.querySelectorAll(".cover-character")];
+    const title = cover.querySelector(".theme-title");
+    const copy = cover.querySelector(".cover-copy");
+    return {
+      theme: cover.dataset.coverTheme,
+      characterCount: characters.length,
+      charactersLoaded: characters.every((image) => image.complete && image.naturalWidth > 0),
+      hasPanel: Boolean(cover.querySelector(".cover-panel")),
+      hasScene: Boolean(cover.querySelector(".cover-scene")),
+      fontFamily: getComputedStyle(title).fontFamily,
+      fitsHorizontally: copy.scrollWidth <= copy.clientWidth + 1,
+      fitsVertically: copy.scrollHeight <= copy.clientHeight + 1
+    };
+  }));
   assert.equal(covers.length, 4);
   covers.forEach((cover) => {
-    assert.equal(cover.complete && cover.naturalWidth > 0, true, `Cover image failed: ${cover.src}`);
+    assert.equal(cover.characterCount, 2, `${cover.theme} cover character count`);
+    assert.equal(cover.charactersLoaded, true, `${cover.theme} character image failed`);
+    assert.equal(cover.hasPanel && cover.hasScene, true, `${cover.theme} responsive cover structure missing`);
+    assert.match(cover.fontFamily, /Hancom MalangMalang/);
+    assert.equal(cover.fitsHorizontally, true, `${cover.theme} cover overflows horizontally at ${viewport.width}x${viewport.height}`);
+    assert.equal(cover.fitsVertically, true, `${cover.theme} cover overflows vertically at ${viewport.width}x${viewport.height}`);
   });
 
   for (const [themeId, titles] of Object.entries(expectedTitles)) {
@@ -311,6 +327,7 @@ async function main() {
   assert.equal(appSource.includes(" - 스슌천황어서"), false);
   assert.equal(appSource.includes(" - 제42회"), false);
   assert.equal(appSource.includes("명언100선中"), false);
+  assert.equal(appSource.includes("assets/cards/covers/"), false);
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
