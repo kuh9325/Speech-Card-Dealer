@@ -10,7 +10,9 @@ const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
-  ".png": "image/png"
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2"
 };
 
 function createServer() {
@@ -262,6 +264,13 @@ async function runCardAssetScenario(browser, baseUrl, viewport) {
     career: ["나만의 사명", "인생은 마라톤", "시작하는 습관", "지지 않는 혼", "노력의 습관"],
     money: ["인내 위의 행복", "인간성의 힘", "관점의 전환", "원점으로 돌아가기", "승리를 여는 용기"]
   };
+  const expectedLineCounts = {
+    health: [3, 4, 5, 4, 6],
+    relationships: [3, 4, 4, 4, 5],
+    career: [5, 5, 4, 6, 5],
+    money: [4, 8, 7, 3, 3]
+  };
+  const usesMobileLayout = viewport.width / viewport.height <= 4 / 3 || viewport.height <= 620;
   const context = await browser.newContext({ viewport, reducedMotion: "reduce" });
   const page = await context.newPage();
   await page.goto(baseUrl);
@@ -301,17 +310,35 @@ async function runCardAssetScenario(browser, baseUrl, viewport) {
       await page.locator(`[data-theme-id="${themeId}"]`).click();
       await page.locator('.flip-stage[data-flipped="true"]').waitFor();
       await page.waitForTimeout(30);
-      const layout = await page.locator(".flip-front").evaluate((front) => ({
-        imageComplete: front.querySelector(".full-card-image")?.complete,
-        imageWidth: front.querySelector(".full-card-image")?.naturalWidth,
-        imageSrc: front.querySelector(".full-card-image")?.getAttribute("src"),
-        label: front.closest(".flip-card")?.getAttribute("aria-label"),
-        fitsHorizontally: front.scrollWidth <= front.clientWidth + 1,
-        fitsVertically: front.scrollHeight <= front.clientHeight + 1
-      }));
+      const layout = await page.locator(".flip-front").evaluate((front) => {
+        const card = front.querySelector(".speech-card");
+        const desktopCopy = card.querySelector(".speech-desktop-copy");
+        const mobileCopy = card.querySelector(".speech-mobile-copy");
+        const desktopVisible = getComputedStyle(desktopCopy).display !== "none";
+        const activeCopy = desktopVisible ? desktopCopy : mobileCopy;
+        const characters = [...card.querySelectorAll(".speech-character")];
+        const desktopLinesFit = !desktopVisible || [...desktopCopy.children].every((line) => line.scrollWidth <= desktopCopy.clientWidth + 1);
+        return {
+          speechId: card.dataset.speechId,
+          lineCount: Number(desktopCopy.dataset.lineCount),
+          desktopVisible,
+          mobileVisible: getComputedStyle(mobileCopy).display !== "none",
+          fontFamily: getComputedStyle(activeCopy).fontFamily,
+          charactersLoaded: characters.length === 2 && characters.every((image) => image.complete && image.naturalWidth > 0 && image.src.endsWith(".webp")),
+          label: front.closest(".flip-card")?.getAttribute("aria-label"),
+          desktopLinesFit,
+          fitsHorizontally: activeCopy.scrollWidth <= activeCopy.clientWidth + 1,
+          fitsVertically: activeCopy.scrollHeight <= activeCopy.clientHeight + 1
+        };
+      });
       assert.equal(layout.label, `${expectedTitle} 카드 닫기`);
-      assert.equal(layout.imageComplete && layout.imageWidth > 0, true, `${themeId}-${index + 1} image failed`);
-      assert.equal(layout.imageSrc.endsWith(`/${themeId}-${String(index + 1).padStart(2, "0")}.png`), true);
+      assert.equal(layout.speechId, `${themeId}-${String(index + 1).padStart(2, "0")}`);
+      assert.equal(layout.lineCount, expectedLineCounts[themeId][index]);
+      assert.equal(layout.desktopVisible, !usesMobileLayout);
+      assert.equal(layout.mobileVisible, usesMobileLayout);
+      assert.equal(layout.charactersLoaded, true, `${themeId}-${index + 1} character failed`);
+      assert.match(layout.fontFamily, /Hancom MalangMalang/);
+      assert.equal(layout.desktopLinesFit, true, `${themeId}-${index + 1} desktop line wraps unexpectedly`);
       assert.equal(layout.fitsHorizontally, true, `${themeId}-${index + 1} overflows horizontally at ${viewport.width}x${viewport.height}`);
       assert.equal(layout.fitsVertically, true, `${themeId}-${index + 1} overflows vertically at ${viewport.width}x${viewport.height}`);
       await closeCard(page);
@@ -328,6 +355,16 @@ async function main() {
   assert.equal(appSource.includes(" - 제42회"), false);
   assert.equal(appSource.includes("명언100선中"), false);
   assert.equal(appSource.includes("assets/cards/covers/"), false);
+  assert.equal(appSource.includes("frontImage"), false);
+  assert.equal(fs.statSync(path.join(root, "assets/fonts/HancomMalangMalang-Bold-subset.woff2")).size < 100_000, true);
+  assert.equal(fs.existsSync(path.join(root, "assets/cards/fronts")), false);
+  const characterFiles = fs.readdirSync(path.join(root, "assets/cards/characters"));
+  assert.equal(characterFiles.length, 8);
+  assert.equal(characterFiles.every((file) => file.endsWith(".webp")), true);
+  const characterBytes = characterFiles
+    .reduce((total, file) => total + fs.statSync(path.join(root, "assets/cards/characters", file)).size, 0);
+  assert.equal(characterBytes < 1_000_000, true);
+  assert.deepEqual(fs.readdirSync(path.join(root, "assets/fonts")), ["HancomMalangMalang-Bold-subset.woff2"]);
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();

@@ -33,28 +33,29 @@ GitHub Pages를 사용할 경우 이 레포의 루트가 정적 사이트로 바
   id: "health",
   title: "건강",
   coverCharacters: [
-    "assets/cards/characters/boy-fist.png",
-    "assets/cards/characters/woman-clipboard.png"
+    "assets/cards/characters/boy-fist.webp",
+    "assets/cards/characters/woman-clipboard.webp"
   ]
 }
 ```
 
 표지 색상과 테마 장식은 `styles.css`의 `.theme-cover--health`, `.theme-cover--relationships`, `.theme-cover--career`, `.theme-cover--money`에서 관리합니다. 표지에는 제공된 `Hancom MalangMalang` 웹폰트를 사용합니다.
 
-스피치 앞면 이미지는 각 스피치의 `frontImage`에 넣습니다.
+스피치 앞면도 고정 이미지가 아닌 반응형 HTML/CSS로 표시됩니다. `speechLayouts`에 칠판용 글자 크기, 수동 줄바꿈과 캐릭터 조합을 보관합니다. 넓은 화면에서는 인쇄 시안의 줄 배치를 그대로 사용하고, 세로형 모바일에서는 전체 본문을 화면에 맞게 다시 배치합니다.
 
 ```js
-{
-  id: "health-01",
-  title: "강한 자신",
-  body: "참된 건강이란 ...",
-  frontImage: "assets/cards/fronts/health-01.png"
+"health-01": {
+  fontSize: 58,
+  lines: [
+    "참된 건강이란 긍정적인 태도로",
+    "인생을 살아가며 무엇에도 지지 않는",
+    "강한 자신을 구축하는 데 있다."
+  ],
+  characters: ["boy-fist", "woman-clipboard"]
 }
 ```
 
-스피치 앞면은 `assets/cards/fronts/`에 있습니다.
-
-스피치 앞면 이미지 값이 비어 있으면 기본 색상 카드 디자인과 텍스트 스피치가 표시됩니다.
+캐릭터는 투명 WebP, 웹폰트는 실제 사용 글자만 포함한 WOFF2로 경량화되어 있습니다. 인쇄용 고해상도 PNG와 PDF는 웹앱 외부의 인쇄 출력 폴더에서 별도로 관리합니다.
 
 ## 스마트 칠판 안전 모드
 
